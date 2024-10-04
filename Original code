@@ -1,0 +1,181 @@
+!git clone https://github.com/parth1620/Facial-Expression-Dataset.git
+!pip install -U git+https://github.com/albumentations-team/albumentations
+!pip install timm
+!pip install --upgrade opencv-contrib-python
+
+"""# Imports"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import torch
+
+"""# Configurations"""
+
+TRAIN_IMG_DIR = '/content/Facial-Expression-Dataset/train/'
+VALID_IMG_DIR = '/content/Facial-Expression-Dataset/validation/'
+LR = 0.001 #helps change weight wrt loss gr in each iteration
+BATCH_SIZE = 32 #no. of samplesprocessed before model is updated
+EPOCHS = 15 #no. of complete pass through training data
+DEVICE = 'cuda' #GPU used
+MODEL_NAME = 'efficientnet_b0' #optimized CNN architecture design for image classfctn
+
+"""# Load Dataset"""
+
+from torchvision.datasets import ImageFolder
+from torchvision import transforms as T
+
+TRAIN_AUG_IMG = T.Compose([  #compose is part of torchvision.transforms module in pytorch
+    T.RandomHorizontalFlip(p = 0.5),
+    T.RandomRotation(degrees=(-20, +20)),
+    T.ToTensor() #numpy to torch tensor, hwc to chw
+])
+VALID_IMG_AUG = T.Compose([
+    T.ToTensor()
+])
+
+trainset = ImageFolder(TRAIN_IMG_DIR, transform = TRAIN_AUG_IMG)
+validset = ImageFolder(VALID_IMG_DIR, transform = VALID_IMG_AUG)
+
+print(f"Total no. of examples in trainset : {len(trainset)}")
+print(f"Total no. of examples in validset : {len(validset)}")
+
+
+
+print(trainset.class_to_idx) #to know each claass name and it corspndng label
+
+image, label = trainset[28820] #can use validset also
+plt.imshow(image.permute(1,2,0)) #opposite of totensor now chw
+plt.title(label);
+
+"""# Load Dataset into Batches"""
+
+from torch.utils.data import DataLoader
+
+trainloader = DataLoader(trainset, batch_size = BATCH_SIZE, shuffle = True)
+validloader = DataLoader(validset, batch_size = BATCH_SIZE)
+
+print(f"Total no. of batches in trainloader : {len(trainloader)}")
+print(f"Total no. of batches in validloader : {len(validloader)}")
+
+for images, labels in trainloader:
+  break; #since we want to load the first batch use break
+print(f"One image batch shape : {images.shape}")  #32, 3, 48, 48 here 32 iin no.of images. batch size,c,h,w
+print(f"One label batch shape : {labels.shape}") #obviously for 32 images therebwill b 32 labels
+
+"""# Create Model"""
+
+import timm
+from torch import nn
+
+class FaceModel(nn.Module): #creates a custom NN for tasks like face classfct, recogntn
+
+    def __init__(self): #__init is constructor used to inituialize FaceModel in nxt line
+      super(FaceModel, self).__init__() #NN.MODULE IS PARENTCLASS FCAEMODEL IS CHILD CLASS AND SUPER IS USED TO CALL THE CONSTRUCTOR OF PC FROM CL
+      self.eff_net = timm.create_model('efficientnet_b0', pretrained = True, num_classes = 7) # model will load pretrained weights
+    def forward(self, images, labels = None): #flow. images is th input
+      logits = self.eff_net(images) #the ip images is passed through eff net model
+    #tim op is always logits not probabilities, if u want latter use activatn fn like sigmoid fn during predict
+      if labels != None:
+        loss = nn.CrossEntropyLoss(logits, labels)
+        return logits, loss
+      return logits #during prediction time we will have only images, no label as in forwrd definitn so will get only the logits
+    #training time both imgs n labels so above return loits, loss
+model = FaceModel()
+model.to(DEVICE) #cuda above said . remove; to see op lastline is 'linear'
+#CREATD MODEL. NOW TRAIN AND EVAL
+
+"""# Create Train and Eval Function"""
+
+from tqdm import tqdm
+
+def multiclass_accuracy(y_pred,y_true):
+    top_p,top_class = y_pred.topk(1,dim = 1)
+    equals = top_class == y_true.view(*top_class.shape)
+    return torch.mean(equals.type(torch.FloatTensor))
+
+def train_fn(model, dataloader, optimizer, current_epo):
+  model.train()
+  total_loss = 0.0
+  total_acc = 0.0
+  #tqdm to show progressn
+  #if current epoch is 0 > Epoch [Train] 1/10
+  tk = tqdm(dataloader, desc = "EPOCH" + "[TRAIN]" + str(current_epo + 1) + "/" + str(EPOCHS))
+  for t, data in enumerate(tk): #enumeratefunction used to loop and keep indexing
+    images, label = data
+    images, label = images.to(DEVICE),labels.to(DEVICE)
+
+    optimizer.zero_grad()
+    logits, loss = model(images, label) #loss is diff btwn true value and logits
+    loss.backward() #calculates how each parameter contributd to loss, allowing the optimizer to updatewell,
+    #above followed by optimizer
+    optimizer.step()
+
+    total_loss += loss.item() #lossitem converts loss tensor>python float
+    total_acc += multiclass_accuracy(logits, label) #multiclss problms, gives fractn of correct over totoal predicts
+    #accuracy followed by setpostfix
+    #updates d progress bar
+    tk.set_postfix({'loss' : '%6f' %float(total_loss / (t+1)), 'acc' : '%6f' %float(total_acc / (t+1)),})
+  #tl/t+1 is avg loss to 6decplaces
+  return total_loss / len(dataloader), total_acc / len(dataloader)
+
+#to evaluate
+def eval_fn(model, dataloader, current_epo): #no optimzr reqd
+  model.eval()
+  total_loss = 0.0
+  total_acc = 0.0
+  #tqdm to show progressn
+  #if current epoch is 0 > Epoch [Train] 1/10
+  tk = tqdm(dataloader, desc = "EPOCH" + "[TRAIN]" + str(current_epo + 1) + "/" + str(EPOCHS))
+  for t, data in enumerate(tk): #enumeratefunction used to loop and keep indexing
+    images, label = data
+    images, label = images.to(DEVICE),labels.to(DEVICE)
+    logits, loss = model(images, label) #loss is diff btwn true value and logits
+
+    total_loss += loss.item() #lossitem converts loss tensor>python float
+    total_acc += multiclass_accuracy(logits, label) #multiclss problms, gives fractn of correct over totoal predicts
+    #accuracy followed by setpostfix
+    #updates d progress bar
+    tk.set_postfix({'loss' : '%6f' %float(total_loss / (t+1)), 'acc' : '%6f' %float(total_acc / (t+1)),})
+  #tl/t+1 is avg loss to 6decplaces
+  return total_loss / len(dataloader), total_acc / len(dataloader)
+
+"""# Create Training Loop"""
+
+optimizer = torch.optim.Adam(model.parameters(), lr = LR)
+
+best_valid_loss = np.Inf #positive infinity. to represnt a vale thats greater than any finit no.
+
+for i in range(EPOCHS):
+  train_loss, train_acc = train_fn(model, trainloader, optimizer, i)
+  valid_loss, valid_acc = eval_fn(model, validloader, i)
+
+  if valid_loss < best_valid_loss:
+    torch.save(model.state_dict(), 'best-weights.pt') #mdlstate retrieves models paarmetrs
+    #above contains dictionary- tensors of weights for each layer
+    print("Saved best weights")
+    best_valid_loss = valid_loss
+
+"""# Inference"""
+
+def view_classify(img, ps):
+
+    classes = ['angry', 'disgust', 'fear', 'happy', 'neutral', 'sad', 'surprise']
+
+    ps = ps.data.cpu().numpy().squeeze()
+    img = img.numpy().transpose(1,2,0)
+
+    fig, (ax1, ax2) = plt.subplots(figsize=(5,9), ncols=2)
+    ax1.imshow(img)
+    ax1.axis('off')
+    ax2.barh(classes, ps)
+    ax2.set_aspect(0.1)
+    ax2.set_yticks(classes)
+    ax2.set_yticklabels(classes)
+    ax2.set_title('Class Probability')
+    ax2.set_xlim(0, 1.1)
+
+    plt.tight_layout()
+    plt.show()
+
+    return None
+
