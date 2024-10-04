@@ -178,4 +178,11 @@ def view_classify(img, ps):
     plt.show()
 
     return None
+image, label = validset[97]
+image = image.unsqueeze(0)
+
+logits = model(image.to(DEVICE))
+probs = nn.Softmax(dim = 1)(logits)
+
+view_classify(image.squeeze(), probs)
 
