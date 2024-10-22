@@ -1,7 +1,7 @@
 Project loads a pretrained state of the art model CNN which is trained in PyTorch to classify facial expressions. The data consists of 48 x 48 pixel grayscale images of faces and there are seven targets (angry, disgust, fear, happy, sad, surprise, neutral). Furthermore, applied augmentation for classification task to augment images. Created train and evaluator function which was used to write training loop. Lastly,used best trained model to classify expression given any input image.
 SKILLS : 
-Computer Vision
-Convolutional Neural Network
-Deep Learning
-classification
+Computer Vision,
+Convolutional Neural Network,
+Deep Learning,
+classification,
 pytorch
