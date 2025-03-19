@@ -38,9 +38,6 @@ validset = ImageFolder(VALID_IMG_DIR, transform = VALID_IMG_AUG)
 
 print(f"Total no. of examples in trainset : {len(trainset)}")
 print(f"Total no. of examples in validset : {len(validset)}")
-
-
-
 print(trainset.class_to_idx) #to know each claass name and it corspndng label
 
 image, label = trainset[28820] #can use validset also
@@ -50,10 +47,8 @@ plt.title(label);
 """# Load Dataset into Batches"""
 
 from torch.utils.data import DataLoader
-
 trainloader = DataLoader(trainset, batch_size = BATCH_SIZE, shuffle = True)
 validloader = DataLoader(validset, batch_size = BATCH_SIZE)
-
 print(f"Total no. of batches in trainloader : {len(trainloader)}")
 print(f"Total no. of batches in validloader : {len(validloader)}")
 
